@@ -55,15 +55,18 @@ Configurable in Preferences:
 
 Overlay grid controls:
 
-- `A S D F G H J K L Q W E R T Y U I O P Z X C V B N`: narrow the target cell.
-- `Enter`: click only when Accessibility sees a clickable control there; otherwise hide the grid.
-- `Space` or `1`: force left click at the target.
+- `A S D F G H J K L M W E R T Y U I O P Z X C V B N`: narrow the target cell.
+- `Enter`: left-click the nearest clickable control; otherwise hide the grid.
+- Hold `Space` + `J`: scroll down while keeping the grid open.
+- Hold `Space` + `K`: scroll up while keeping the grid open.
+- `1`: force left click at the target.
 - `2`: double click.
 - `3`: right click.
 - `4`: start/drop a drag.
 - `Backspace`: undo one grid step.
 - `Tab`: toggle persistent overlay mode.
-- `ArrowLeft` / `ArrowRight`: switch monitors.
+- `ArrowLeft` / `ArrowRight`: switch monitors before precision mode.
+- Arrow keys: nudge the target in precision mode.
 - `-` / `=`: decrease/increase overlay opacity.
 - `` ` ``: repeat the last action.
 - `Escape`: hide overlay fallback.
@@ -91,3 +94,13 @@ Settings are saved to:
 ```text
 ~/Library/Application Support/Mouseless/config.json
 ```
+
+## Testing Precision Mode
+
+1. Run `make app && open .build/release/Mouseless.app`.
+2. Grant Accessibility permission if macOS asks, then restart the app.
+3. Press the overlay shortcut, default `Option+U`.
+4. Press grid letters three times, for example `A`, then `S`, then `D`.
+5. When the cells get tiny, Mouseless shows a larger precision grid so the letters stay readable.
+6. Use the arrow keys to nudge the pink target marker by a small adaptive step.
+7. Press `Enter` to left-click a clickable target, hold `Space` + `J`/`K` to scroll, press `1` to force-click, or press `Q`/`Escape` to close the grid.

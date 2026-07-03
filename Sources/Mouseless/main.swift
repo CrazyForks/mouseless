@@ -143,7 +143,7 @@ enum KeyLabel {
 
     static let gridSequence = [
         "A", "S", "D", "F", "G",
-        "H", "J", "K", "L", "Q",
+        "H", "J", "K", "L", "M",
         "W", "E", "R", "T", "Y",
         "U", "I", "O", "P", "Z",
         "X", "C", "V", "B", "N"
@@ -333,6 +333,18 @@ enum CoordinateSpace {
 }
 
 final class AccessibilityClickDetector {
+    enum Activation {
+        case click(CGPoint)
+        case notFound
+    }
+
+    private struct Candidate {
+        let element: AXUIElement
+        let clickPoint: CGPoint?
+        let area: CGFloat
+        let order: Int
+    }
+
     static let shared = AccessibilityClickDetector()
     private let clickableRoles: Set<String> = [
         "AXButton",
@@ -351,15 +363,60 @@ final class AccessibilityClickDetector {
     ]
     private let pressAction = "AXPress"
 
-    func hasClickableTarget(at appKitPoint: CGPoint) -> Bool {
-        let quartzPoint = CoordinateSpace.appKitToQuartz(appKitPoint)
-        if let element = element(at: quartzPoint), isClickable(element) {
-            return true
+    func activateClickableTarget(at appKitPoint: CGPoint) -> Activation {
+        let candidates = clickableCandidates(around: appKitPoint)
+        if let point = candidates.compactMap(\.clickPoint).first {
+            return .click(point)
         }
-        if let element = element(at: appKitPoint), isClickable(element) {
-            return true
+
+        return .notFound
+    }
+
+    private func clickableCandidates(around appKitPoint: CGPoint) -> [Candidate] {
+        var candidates: [Candidate] = []
+        var seen = Set<String>()
+        for (order, point) in scanPoints(around: appKitPoint).enumerated() {
+            for candidatePoint in [CoordinateSpace.appKitToQuartz(point), point] {
+                guard let element = element(at: candidatePoint),
+                      let clickableElement = clickableAncestor(of: element)
+                else { continue }
+
+                let key = identityKey(for: clickableElement)
+                guard !seen.contains(key) else { continue }
+                seen.insert(key)
+                candidates.append(Candidate(
+                    element: clickableElement,
+                    clickPoint: clickPoint(for: clickableElement),
+                    area: frameArea(for: clickableElement),
+                    order: order
+                ))
+            }
         }
-        return false
+
+        return candidates.sorted {
+            if $0.area != $1.area {
+                return $0.area < $1.area
+            }
+            return $0.order < $1.order
+        }
+    }
+
+    private func scanPoints(around point: CGPoint) -> [CGPoint] {
+        var points = [point]
+        let offsets: [CGFloat] = [5, 10, 16, 24, 36, 52]
+        for offset in offsets {
+            points.append(contentsOf: [
+                CGPoint(x: point.x - offset, y: point.y),
+                CGPoint(x: point.x + offset, y: point.y),
+                CGPoint(x: point.x, y: point.y - offset),
+                CGPoint(x: point.x, y: point.y + offset),
+                CGPoint(x: point.x - offset, y: point.y - offset),
+                CGPoint(x: point.x + offset, y: point.y - offset),
+                CGPoint(x: point.x - offset, y: point.y + offset),
+                CGPoint(x: point.x + offset, y: point.y + offset)
+            ])
+        }
+        return points
     }
 
     private func element(at point: CGPoint) -> AXUIElement? {
@@ -370,19 +427,39 @@ final class AccessibilityClickDetector {
         return element
     }
 
-    private func isClickable(_ element: AXUIElement) -> Bool {
+    private func clickableAncestor(of element: AXUIElement) -> AXUIElement? {
         var current: AXUIElement? = element
-        for _ in 0..<6 {
-            guard let candidate = current else { return false }
+        for _ in 0..<8 {
+            guard let candidate = current else { return nil }
             if actionNames(for: candidate).contains(pressAction) {
-                return true
+                return candidate
             }
             if let role = stringAttribute("AXRole", from: candidate), clickableRoles.contains(role) {
-                return true
+                return candidate
             }
             current = parent(of: candidate)
         }
-        return false
+        return nil
+    }
+
+    private func identityKey(for element: AXUIElement) -> String {
+        let role = stringAttribute("AXRole", from: element) ?? ""
+        let title = stringAttribute("AXTitle", from: element) ?? ""
+        let description = stringAttribute("AXDescription", from: element) ?? ""
+        let area = Int(frameArea(for: element))
+        return "\(role)|\(title)|\(description)|\(area)"
+    }
+
+    private func frameArea(for element: AXUIElement) -> CGFloat {
+        if let frame = rectAttribute("AXFrame", from: element) {
+            return max(1, frame.width * frame.height)
+        }
+        return CGFloat.greatestFiniteMagnitude
+    }
+
+    private func clickPoint(for element: AXUIElement) -> CGPoint? {
+        guard let frame = rectAttribute("AXFrame", from: element) else { return nil }
+        return CoordinateSpace.quartzToAppKit(CGPoint(x: frame.midX, y: frame.midY))
     }
 
     private func actionNames(for element: AXUIElement) -> [String] {
@@ -401,6 +478,21 @@ final class AccessibilityClickDetector {
         return value as? String
     }
 
+    private func rectAttribute(_ attribute: String, from element: AXUIElement) -> CGRect? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
+              let axValue = value,
+              CFGetTypeID(axValue) == AXValueGetTypeID()
+        else { return nil }
+
+        let typedValue = axValue as! AXValue
+        var rect = CGRect.zero
+        guard AXValueGetType(typedValue) == .cgRect,
+              AXValueGetValue(typedValue, .cgRect, &rect)
+        else { return nil }
+        return rect
+    }
+
     private func parent(of element: AXUIElement) -> AXUIElement? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, "AXParent" as CFString, &value) == .success else {
@@ -417,9 +509,10 @@ final class OverlayController {
     private var history: [CGRect] = []
     private var activeRegion: CGRect = .zero
     private var targetOffset: CGSize = .zero
+    private var scrollModifierActive = false
     private var currentScreenIndex = 0
     private var lastAction: (() -> Void)?
-    private var actionStatus = "Enter click  Space force-click  Q quit  Tab persist"
+    private var actionStatus = "Enter left-click  Hold Space+J/K scroll  1 force-click  Q quit"
 
     var isVisible: Bool {
         windows.contains { $0.isVisible }
@@ -436,8 +529,9 @@ final class OverlayController {
         currentScreenIndex = NSScreen.screens.firstIndex { $0.frame.contains(mousePoint) } ?? 0
         activeRegion = NSScreen.screens[currentScreenIndex].frame
         targetOffset = .zero
+        scrollModifierActive = false
         history.removeAll()
-        actionStatus = "Enter click  Space force-click  \(settings.quitGridKey) quit  Tab persist"
+        actionStatus = "Enter left-click  Hold Space+J/K scroll  1 force-click  \(settings.quitGridKey) quit"
         setWindowsVisible(true)
         redraw()
     }
@@ -445,6 +539,7 @@ final class OverlayController {
     func hide() {
         setWindowsVisible(false)
         history.removeAll()
+        scrollModifierActive = false
     }
 
     func toggle() {
@@ -455,16 +550,43 @@ final class OverlayController {
         redraw()
     }
 
-    func handle(label: String) {
+    func handle(type: CGEventType, label: String) {
+        if type == .keyUp {
+            if label == "Space" {
+                scrollModifierActive = false
+                actionStatus = "Scroll off"
+                redraw()
+            }
+            return
+        }
+        guard type == .keyDown else { return }
+
         if label == settings.quitGridKey || label == "Escape" {
             hide()
             return
         }
 
+        if scrollModifierActive {
+            switch label {
+            case "J", "ArrowDown":
+                scrollOverlay(direction: .down)
+                return
+            case "K", "ArrowUp":
+                scrollOverlay(direction: .up)
+                return
+            default:
+                break
+            }
+        }
+
         switch label {
         case "Backspace":
             undo()
-        case "Space", "1":
+        case "Space":
+            scrollModifierActive = true
+            actionStatus = "Scroll mode: J down  K up"
+            redraw()
+        case "1":
             perform("Left click") { self.mouse.click(at: self.virtualCursor) }
         case "2":
             perform("Double click") { self.mouse.click(at: self.virtualCursor, count: 2) }
@@ -537,11 +659,34 @@ final class OverlayController {
     }
 
     private func clickIfAccessibleTarget() {
-        guard AccessibilityClickDetector.shared.hasClickableTarget(at: virtualCursor) else {
+        let target = virtualCursor
+        let activation = AccessibilityClickDetector.shared.activateClickableTarget(at: target)
+        guard case .notFound = activation else {
             hide()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [mouse] in
+                switch activation {
+                case .click(let point):
+                    mouse.click(at: point)
+                case .notFound:
+                    break
+                }
+            }
             return
         }
-        perform("Clicked") { self.mouse.click(at: self.virtualCursor) }
+
+        hide()
+    }
+
+    private enum ScrollDirection {
+        case up
+        case down
+    }
+
+    private func scrollOverlay(direction: ScrollDirection) {
+        let amount = settings.scrollStep * 5
+        mouse.scroll(vertical: direction == .down ? -amount : amount)
+        actionStatus = direction == .down ? "Scrolled down" : "Scrolled up"
+        redraw()
     }
 
     private func selectCell(index: Int) {
@@ -581,7 +726,7 @@ final class OverlayController {
         if mouse.isDragging {
             mouse.moveDrag(to: virtualCursor)
         }
-        actionStatus = "Nudged \(Int(precisionNudgeStep))px  Enter click  Space force-click"
+            actionStatus = "Nudged \(Int(precisionNudgeStep))px  Enter click  Space+J/K scroll"
         redraw()
     }
 
@@ -1319,18 +1464,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, EventTapDelegate {
         guard type == .keyDown || type == .keyUp else { return false }
         guard let label else { return false }
 
-        if type == .keyUp {
-            return overlay.isVisible || freeMode.isActive
-        }
-
-        if settingsStore.settings.overlayHotkey.matches(label: label, flags: flags) {
+        if type == .keyDown && settingsStore.settings.overlayHotkey.matches(label: label, flags: flags) {
             overlay.toggle()
             return true
         }
 
         if overlay.isVisible {
-            overlay.handle(label: label)
+            overlay.handle(type: type, label: label)
             return true
+        }
+
+        if type == .keyUp {
+            return freeMode.isActive
         }
 
         if freeMode.isActive {

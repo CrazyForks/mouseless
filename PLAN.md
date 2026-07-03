@@ -7,14 +7,17 @@ This document describes the current macOS app features and the platform seams th
 - Global overlay shortcut, default `Option+U`, configurable in Preferences.
 - Status bar app with menu actions for showing the overlay, toggling free mode, opening Preferences, and quitting.
 - Full-screen transparent overlay windows across all connected displays.
-- Recursive keyboard grid targeting with these labels: `A S D F G H J K L Q W E R T Y U I O P Z X C V B N`.
+- Recursive keyboard grid targeting with these labels: `A S D F G H J K L M W E R T Y U I O P Z X C V B N`.
 - Configurable grid size from 3x3 through 5x5.
 - Target refinement by pressing grid labels; `Backspace` undoes one refinement step.
-- `Enter` guarded click: clicks only if OS accessibility hit-testing reports an interactable target; if not, the grid closes.
-- `Space` or `1` force left-clicks at the current target.
+- `Enter` guarded click: scans around the target, hides the overlay, then left-clicks the nearest interactable control center; if no target is confirmed, the grid closes.
+- Holding `Space` enables scroll mode; `J` scrolls down and `K` scrolls up while keeping the grid open.
+- `1` force left-clicks at the current target.
 - `2` double-clicks, `3` right-clicks, and `4` starts or drops a drag.
 - `Tab` toggles persistent overlay mode.
-- `ArrowLeft` and `ArrowRight` switch the active monitor.
+- Precision mode automatically shows a magnified grid when refined cells are too small to read.
+- In precision mode, arrow keys nudge the target point with an adaptive small step.
+- `ArrowLeft` and `ArrowRight` switch the active monitor before precision mode.
 - `-` and `=` adjust overlay opacity.
 - Backtick repeats the last click/drag action.
 - Quit grid key defaults to `Q` and is configurable in Preferences; `Escape` remains a fallback.
