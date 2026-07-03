@@ -3,3 +3,9 @@
 xcuserdata/
 *.xcuserstate
 .commandcode
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.tar.bz2
+*.tbz
