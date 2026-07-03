@@ -287,6 +287,21 @@ final class MouseController {
         event?.post(tap: .cghidEventTap)
     }
 
+    func scroll(at appKitPoint: CGPoint, vertical: Int32, horizontal: Int32 = 0) {
+        let quartzPoint = CoordinateSpace.appKitToQuartz(appKitPoint)
+        CGWarpMouseCursorPosition(quartzPoint)
+        let source = CGEventSource(stateID: .hidSystemState)
+        let event = CGEvent(
+            scrollWheelEvent2Source: source,
+            units: .pixel,
+            wheelCount: 2,
+            wheel1: vertical,
+            wheel2: horizontal,
+            wheel3: 0
+        )
+        event?.post(tap: .cghidEventTap)
+    }
+
     private func postMouse(type: CGEventType, at appKitPoint: CGPoint, button: CGMouseButton, clickCount: Int64 = 1) {
         let source = CGEventSource(stateID: .hidSystemState)
         let event = CGEvent(
@@ -674,7 +689,7 @@ final class OverlayController {
 
     private func scrollOverlay(direction: ScrollDirection) {
         let amount = settings.scrollStep * 5
-        mouse.scroll(vertical: direction == .down ? -amount : amount)
+        mouse.scroll(at: virtualCursor, vertical: direction == .down ? -amount : amount)
         actionStatus = direction == .down ? "Scrolled down" : "Scrolled up"
         redraw()
     }
