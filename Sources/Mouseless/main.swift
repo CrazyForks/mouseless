@@ -606,9 +606,9 @@ final class OverlayController {
         case "ArrowLeft":
             isPrecisionMode ? nudgeTarget(dx: -precisionNudgeStep, dy: 0) : moveScreen(delta: -1)
         case "ArrowUp":
-            if isPrecisionMode { nudgeTarget(dx: 0, dy: precisionNudgeStep) }
+            if isPrecisionMode { nudgeTarget(dx: 0, dy: precisionNudgeStep) } else { scrollOverlay(direction: .up) }
         case "ArrowDown":
-            if isPrecisionMode { nudgeTarget(dx: 0, dy: -precisionNudgeStep) }
+            if isPrecisionMode { nudgeTarget(dx: 0, dy: -precisionNudgeStep) } else { scrollOverlay(direction: .down) }
         case "=":
             settingsStore.settings.overlayOpacity = min(0.95, settingsStore.settings.overlayOpacity + 0.06)
             redraw()
