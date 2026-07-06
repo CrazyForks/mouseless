@@ -890,8 +890,8 @@ final class OverlayView: NSView {
     }
 
     private func precisionGridRect(around localRegion: CGRect, snapshot: OverlaySnapshot) -> CGRect {
-        let width = min(bounds.width - 48, max(160, CGFloat(snapshot.columns) * 32))
-        let height = min(bounds.height - 96, max(120, CGFloat(snapshot.rows) * 24))
+        let width = min(bounds.width - 48, max(120, CGFloat(snapshot.columns) * 24))
+        let height = min(bounds.height - 96, max(90, CGFloat(snapshot.rows) * 18))
         var origin = CGPoint(
             x: localRegion.midX - width / 2,
             y: localRegion.midY - height / 2
@@ -1008,16 +1008,16 @@ final class OverlayView: NSView {
             x: gridRegion.minX + normalizedX * gridRegion.width,
             y: gridRegion.minY + normalizedY * gridRegion.height
         )
-        let radius: CGFloat = 8
+        let radius: CGFloat = 4
         NSColor.systemPink.setFill()
         NSBezierPath(ovalIn: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)).fill()
         NSColor.white.withAlphaComponent(0.95).setStroke()
         let crosshair = NSBezierPath()
-        crosshair.move(to: CGPoint(x: point.x - 16, y: point.y))
-        crosshair.line(to: CGPoint(x: point.x + 16, y: point.y))
-        crosshair.move(to: CGPoint(x: point.x, y: point.y - 16))
-        crosshair.line(to: CGPoint(x: point.x, y: point.y + 16))
-        crosshair.lineWidth = 2
+        crosshair.move(to: CGPoint(x: point.x - 10, y: point.y))
+        crosshair.line(to: CGPoint(x: point.x + 10, y: point.y))
+        crosshair.move(to: CGPoint(x: point.x, y: point.y - 10))
+        crosshair.line(to: CGPoint(x: point.x, y: point.y + 10))
+        crosshair.lineWidth = 1.5
         crosshair.stroke()
     }
 
