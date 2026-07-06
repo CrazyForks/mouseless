@@ -627,7 +627,7 @@ final class OverlayController {
         case "4":
             perform(mouse.isDragging ? "Drop" : "Drag") { self.mouse.toggleDrag(at: self.virtualCursor) }
         case "Enter":
-            clickIfAccessibleTarget()
+            perform("Left click") { self.mouse.click(at: self.virtualCursor) }
         case "Tab":
             settingsStore.settings.continuousMode.toggle()
             actionStatus = settingsStore.settings.continuousMode ? "Persistent overlay on" : "Persistent overlay off"
