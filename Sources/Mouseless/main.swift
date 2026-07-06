@@ -251,6 +251,7 @@ final class MouseController {
         let down = mouseDownType(for: button)
         let up = mouseUpType(for: button)
         postMouse(type: down, at: appKitPoint, button: button, clickCount: count)
+        usleep(15000)
         postMouse(type: up, at: appKitPoint, button: button, clickCount: count)
     }
 
@@ -681,7 +682,7 @@ final class OverlayController {
     }
 
     private var precisionNudgeStep: CGFloat {
-        max(1, min(8, min(activeRegion.width, activeRegion.height) / 18))
+        max(1, min(4, min(activeRegion.width, activeRegion.height) / 32))
     }
 
     private func perform(_ status: String, action: @escaping () -> Void) {
@@ -699,7 +700,9 @@ final class OverlayController {
         hide()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [mouse] in
             let activation = AccessibilityClickDetector.shared.activateClickableTarget(at: target)
-            _ = AccessibilityClickDetector.shared.performActivation(activation, mouse: mouse)
+            if !AccessibilityClickDetector.shared.performActivation(activation, mouse: mouse) {
+                mouse.click(at: target)
+            }
         }
     }
 
@@ -719,6 +722,18 @@ final class OverlayController {
         let row = index / settings.gridColumns
         let column = index % settings.gridColumns
         guard row < settings.gridRows else { return }
+
+        if isPrecisionMode {
+            let subWidth = activeRegion.width / CGFloat(settings.gridColumns)
+            let subHeight = activeRegion.height / CGFloat(settings.gridRows)
+            let targetX = activeRegion.minX + (CGFloat(column) + 0.5) * subWidth
+            let targetY = activeRegion.maxY - (CGFloat(row) + 0.5) * subHeight
+            targetOffset = CGSize(width: targetX - activeRegion.midX, height: targetY - activeRegion.midY)
+            mouse.moveDrag(to: virtualCursor)
+            actionStatus = "Precision \(labelForCurrentPath())  arrows nudge \(Int(precisionNudgeStep))px"
+            redraw()
+            return
+        }
 
         history.append(activeRegion)
         let width = activeRegion.width / CGFloat(settings.gridColumns)
@@ -897,7 +912,9 @@ final class OverlayView: NSView {
             drawPrecisionAnchor(from: localRegion, to: gridRegion)
         }
         drawGrid(snapshot, in: gridRegion)
-        drawCursor(snapshot)
+        if !snapshot.precisionMode {
+            drawCursor(snapshot)
+        }
         if snapshot.precisionMode {
             drawPrecisionCursor(snapshot, in: gridRegion)
         }
@@ -905,8 +922,8 @@ final class OverlayView: NSView {
     }
 
     private func precisionGridRect(around localRegion: CGRect, snapshot: OverlaySnapshot) -> CGRect {
-        let width = min(bounds.width - 48, max(320, CGFloat(snapshot.columns) * 64))
-        let height = min(bounds.height - 96, max(240, CGFloat(snapshot.rows) * 52))
+        let width = min(bounds.width - 48, max(200, CGFloat(snapshot.columns) * 40))
+        let height = min(bounds.height - 96, max(150, CGFloat(snapshot.rows) * 32))
         var origin = CGPoint(
             x: localRegion.midX - width / 2,
             y: localRegion.midY - height / 2
