@@ -248,10 +248,11 @@ final class MouseController {
 
     func click(at appKitPoint: CGPoint, button: CGMouseButton = .left, count: Int64 = 1) {
         move(to: appKitPoint)
+        usleep(30000) // Allow web UI to process hover state (e.g. YouTube controls)
         let down = mouseDownType(for: button)
         let up = mouseUpType(for: button)
         postMouse(type: down, at: appKitPoint, button: button, clickCount: count)
-        usleep(15000)
+        usleep(50000) // Increase click duration to ensure JS registers a valid click
         postMouse(type: up, at: appKitPoint, button: button, clickCount: count)
     }
 
@@ -347,11 +348,7 @@ enum CoordinateSpace {
 }
 
 final class AccessibilityClickDetector {
-    enum Activation {
-        case press(AXUIElement, CGPoint)
-        case click(CGPoint)
-        case notFound
-    }
+
 
     private struct Candidate {
         let element: AXUIElement
@@ -378,31 +375,9 @@ final class AccessibilityClickDetector {
     ]
     private let pressAction = "AXPress"
 
-    func activateClickableTarget(at appKitPoint: CGPoint) -> Activation {
+    func snapToClickableTarget(around appKitPoint: CGPoint) -> CGPoint? {
         let candidates = clickableCandidates(around: appKitPoint)
-        if let best = candidates.first {
-            if let point = best.clickPoint {
-                return .press(best.element, point)
-            }
-        }
-
-        return .notFound
-    }
-
-    func performActivation(_ activation: Activation, mouse: MouseController) -> Bool {
-        switch activation {
-        case let .press(element, point):
-            if AXUIElementPerformAction(element, pressAction as CFString) == .success {
-                return true
-            }
-            mouse.click(at: point)
-            return true
-        case let .click(point):
-            mouse.click(at: point)
-            return true
-        case .notFound:
-            return false
-        }
+        return candidates.first?.clickPoint
     }
 
     private func clickableCandidates(around appKitPoint: CGPoint) -> [Candidate] {
@@ -619,15 +594,15 @@ final class OverlayController {
             actionStatus = "Scroll mode: J down  K up"
             redraw()
         case "1":
-            perform("Left click") { self.mouse.click(at: self.virtualCursor) }
+            perform("Left click") { self.mouse.click(at: self.snappedCursor) }
         case "2":
-            perform("Double click") { self.mouse.click(at: self.virtualCursor, count: 2) }
+            perform("Double click") { self.mouse.click(at: self.snappedCursor, count: 2) }
         case "3":
-            perform("Right click") { self.mouse.click(at: self.virtualCursor, button: .right) }
+            perform("Right click") { self.mouse.click(at: self.snappedCursor, button: .right) }
         case "4":
-            perform(mouse.isDragging ? "Drop" : "Drag") { self.mouse.toggleDrag(at: self.virtualCursor) }
+            perform(mouse.isDragging ? "Drop" : "Drag") { self.mouse.toggleDrag(at: self.snappedCursor) }
         case "Enter":
-            perform("Left click") { self.mouse.click(at: self.virtualCursor) }
+            perform("Left click") { self.mouse.click(at: self.snappedCursor) }
         case "Tab":
             settingsStore.settings.continuousMode.toggle()
             actionStatus = settingsStore.settings.continuousMode ? "Persistent overlay on" : "Persistent overlay off"
@@ -670,6 +645,13 @@ final class OverlayController {
         return CGPoint(x: x, y: y)
     }
 
+    private var snappedCursor: CGPoint {
+        if let snapped = AccessibilityClickDetector.shared.snapToClickableTarget(around: virtualCursor) {
+            return snapped
+        }
+        return virtualCursor
+    }
+
     private var isPrecisionMode: Bool {
         let cellWidth = activeRegion.width / CGFloat(settings.gridColumns)
         let cellHeight = activeRegion.height / CGFloat(settings.gridRows)
@@ -690,16 +672,7 @@ final class OverlayController {
         }
     }
 
-    private func clickIfAccessibleTarget() {
-        let target = virtualCursor
-        hide()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [mouse] in
-            let activation = AccessibilityClickDetector.shared.activateClickableTarget(at: target)
-            if !AccessibilityClickDetector.shared.performActivation(activation, mouse: mouse) {
-                mouse.click(at: target)
-            }
-        }
-    }
+
 
     private enum ScrollDirection {
         case up
