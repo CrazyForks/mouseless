@@ -9,3 +9,7 @@ xcuserdata/
 *.tgz
 *.tar.bz2
 *.tbz
+
+# Windows / Rust build artifacts
+windows/target/
+dist/
