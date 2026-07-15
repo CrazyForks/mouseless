@@ -415,7 +415,11 @@ impl OverlayState {
     }
 
     fn label_for_current_path(&self) -> String {
-        let size = self.active_region.width().min(self.active_region.height()).max(1.0);
+        let size = self
+            .active_region
+            .width()
+            .min(self.active_region.height())
+            .max(1.0);
         format!("{}px cell", size.round() as i32)
     }
 

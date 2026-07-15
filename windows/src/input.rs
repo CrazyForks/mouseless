@@ -1,12 +1,11 @@
 use std::sync::OnceLock;
-use windows::Win32::Foundation::{HINSTANCE, LRESULT, LPARAM, WPARAM};
+use windows::Win32::Foundation::{HINSTANCE, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
-use windows::Win32::UI::WindowsAndMessaging::{KBDLLHOOKSTRUCT, WH_KEYBOARD_LL};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, HHOOK, SetWindowsHookExW, UnhookWindowsHookEx, WM_KEYDOWN,
-    WM_SYSKEYDOWN,
+    CallNextHookEx, SetWindowsHookExW, UnhookWindowsHookEx, HHOOK, WM_KEYDOWN, WM_SYSKEYDOWN,
 };
+use windows::Win32::UI::WindowsAndMessaging::{KBDLLHOOKSTRUCT, WH_KEYBOARD_LL};
 
 pub const VK_MENU: u32 = 0x12;
 pub const VK_CONTROL: u32 = 0x11;
@@ -49,11 +48,7 @@ pub fn uninstall_keyboard_hook() {
     }
 }
 
-extern "system" fn low_level_keyboard_proc(
-    ncode: i32,
-    wparam: WPARAM,
-    lparam: LPARAM,
-) -> LRESULT {
+extern "system" fn low_level_keyboard_proc(ncode: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     if ncode >= 0 {
         let kb = unsafe { *(lparam.0 as *const KBDLLHOOKSTRUCT) };
         let vk = kb.vkCode;

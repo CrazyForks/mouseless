@@ -39,10 +39,7 @@ fn main() {
     match result {
         Ok(status) if status.success() => {
             println!("cargo:rerun-if-changed={}", rc_path.display());
-            println!(
-                "cargo:rustc-link-arg-bin=mouseless={}",
-                obj_path.display()
-            );
+            println!("cargo:rustc-link-arg-bin=mouseless={}", obj_path.display());
         }
         _ => {
             println!("cargo:warning=windres failed — building without embedded icon");
@@ -56,7 +53,8 @@ fn find_windres(target: &str) -> Option<String> {
     let candidates: Vec<String> = if target.contains("msvc") {
         vec!["rc.exe".to_string()]
     } else {
-        let prefix = target.replace("-pc-windows-gnu", "-w64-mingw32")
+        let prefix = target
+            .replace("-pc-windows-gnu", "-w64-mingw32")
             .replace("-windows-gnu", "-w64-mingw32");
         vec![
             format!("{}-windres", prefix),

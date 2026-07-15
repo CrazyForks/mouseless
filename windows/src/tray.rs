@@ -2,12 +2,12 @@ use std::sync::OnceLock;
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HINSTANCE, HWND};
 use windows::Win32::UI::Shell::{
-    NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW,
-    Shell_NotifyIconW,
+    Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY,
+    NOTIFYICONDATAW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, LoadIconW, MF_CHECKED, MF_STRING,
-    MF_UNCHECKED, SetForegroundWindow, TrackPopupMenu, TPM_BOTTOMALIGN, TPM_LEFTALIGN, WM_USER,
+    AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, LoadIconW, SetForegroundWindow,
+    TrackPopupMenu, MF_CHECKED, MF_STRING, MF_UNCHECKED, TPM_BOTTOMALIGN, TPM_LEFTALIGN, WM_USER,
 };
 
 pub const WM_TRAY: u32 = WM_USER + 1;
@@ -42,9 +42,7 @@ pub fn load_app_icon() -> windows::Win32::UI::WindowsAndMessaging::HICON {
     };
     // MAKEINTRESOURCEW(id) — pack the integer resource ID into a PCWSTR.
     let name = PCWSTR(APP_ICON_ID as usize as *const u16);
-    unsafe {
-        LoadIconW(instance, name).unwrap_or_default()
-    }
+    unsafe { LoadIconW(instance, name).unwrap_or_default() }
 }
 
 pub struct TrayIcon {
@@ -93,17 +91,46 @@ pub fn show_tray_menu(hwnd: HWND, launch_enabled: bool) {
             Ok(m) => m,
             Err(_) => return,
         };
-        let _ = AppendMenuW(menu, MF_STRING, ID_SHOW_OVERLAY as usize, windows::core::PCWSTR::from_raw(to_wide("Show Overlay").as_ptr()));
-        let _ = AppendMenuW(menu, MF_STRING, ID_TOGGLE_FREE_MODE as usize, windows::core::PCWSTR::from_raw(to_wide("Toggle Free Mode").as_ptr()));
-        let _ = AppendMenuW(menu, MF_STRING, ID_PREFERENCES as usize, windows::core::PCWSTR::from_raw(to_wide("Preferences...").as_ptr()));
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING,
+            ID_SHOW_OVERLAY as usize,
+            windows::core::PCWSTR::from_raw(to_wide("Show Overlay").as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING,
+            ID_TOGGLE_FREE_MODE as usize,
+            windows::core::PCWSTR::from_raw(to_wide("Toggle Free Mode").as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING,
+            ID_PREFERENCES as usize,
+            windows::core::PCWSTR::from_raw(to_wide("Preferences...").as_ptr()),
+        );
         let launch_label = if launch_enabled {
             "Launch at Startup (on)"
         } else {
             "Launch at Startup (off)"
         };
-        let launch_flags = if launch_enabled { MF_STRING | MF_CHECKED } else { MF_STRING | MF_UNCHECKED };
-        let _ = AppendMenuW(menu, launch_flags, ID_LAUNCH_STARTUP as usize, windows::core::PCWSTR::from_raw(to_wide(launch_label).as_ptr()));
-        let _ = AppendMenuW(menu, MF_STRING, ID_QUIT as usize, windows::core::PCWSTR::from_raw(to_wide("Quit Mouseless").as_ptr()));
+        let launch_flags = if launch_enabled {
+            MF_STRING | MF_CHECKED
+        } else {
+            MF_STRING | MF_UNCHECKED
+        };
+        let _ = AppendMenuW(
+            menu,
+            launch_flags,
+            ID_LAUNCH_STARTUP as usize,
+            windows::core::PCWSTR::from_raw(to_wide(launch_label).as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING,
+            ID_QUIT as usize,
+            windows::core::PCWSTR::from_raw(to_wide("Quit Mouseless").as_ptr()),
+        );
 
         let mut pt = windows::Win32::Foundation::POINT::default();
         let _ = GetCursorPos(&mut pt);

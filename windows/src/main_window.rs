@@ -2,8 +2,8 @@ use crate::{do_render_overlay, do_toggle_overlay, on_command, on_tray};
 use std::sync::OnceLock;
 use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, RegisterClassW, SW_HIDE, WM_COMMAND, WM_DESTROY,
-    WNDCLASS_STYLES, WNDCLASSW,
+    CreateWindowExW, DefWindowProcW, RegisterClassW, SW_HIDE, WM_COMMAND, WM_DESTROY, WNDCLASSW,
+    WNDCLASS_STYLES,
 };
 
 const WM_TRAY_MSG: u32 = windows::Win32::UI::WindowsAndMessaging::WM_USER + 1;
@@ -21,12 +21,7 @@ fn class_name() -> windows::core::PCWSTR {
     windows::core::PCWSTR::from_raw(v.as_ptr())
 }
 
-extern "system" fn main_wnd_proc(
-    hwnd: HWND,
-    msg: u32,
-    wparam: WPARAM,
-    lparam: LPARAM,
-) -> LRESULT {
+extern "system" fn main_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
         WM_TRAY_MSG => on_tray(hwnd, lparam),
         WM_COMMAND => {

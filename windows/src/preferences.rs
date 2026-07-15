@@ -3,9 +3,10 @@ use std::sync::{Arc, Mutex};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::SystemServices::SS_LEFT;
 use windows::Win32::UI::WindowsAndMessaging::{
-    BM_GETCHECK, BM_SETCHECK, BS_AUTOCHECKBOX, BS_PUSHBUTTON, DestroyWindow, ES_AUTOHSCROLL,
-    ES_NUMBER, GetWindowLongPtrW, GetWindowTextW, GWLP_USERDATA, SendMessageW, SetWindowLongPtrW,
-    SetWindowTextW, ShowWindow, SW_SHOW, WS_BORDER, WS_CHILD, WS_VISIBLE, WINDOW_STYLE,
+    DestroyWindow, GetWindowLongPtrW, GetWindowTextW, SendMessageW, SetWindowLongPtrW,
+    SetWindowTextW, ShowWindow, BM_GETCHECK, BM_SETCHECK, BS_AUTOCHECKBOX, BS_PUSHBUTTON,
+    ES_AUTOHSCROLL, ES_NUMBER, GWLP_USERDATA, SW_SHOW, WINDOW_STYLE, WS_BORDER, WS_CHILD,
+    WS_VISIBLE,
 };
 
 pub const IDC_ROWS: u32 = 2001;
@@ -100,7 +101,9 @@ unsafe fn get_text(hwnd: HWND) -> String {
     if len <= 0 {
         return String::new();
     }
-    String::from_utf16_lossy(&buf[..len as usize]).trim().to_string()
+    String::from_utf16_lossy(&buf[..len as usize])
+        .trim()
+        .to_string()
 }
 
 unsafe fn set_text(hwnd: HWND, text: &str) {
@@ -120,12 +123,7 @@ unsafe fn set_checked(hwnd: HWND, checked: bool) {
     );
 }
 
-extern "system" fn prefs_wnd_proc(
-    hwnd: HWND,
-    msg: u32,
-    wparam: WPARAM,
-    lparam: LPARAM,
-) -> LRESULT {
+extern "system" fn prefs_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
         if msg == windows::Win32::UI::WindowsAndMessaging::WM_COMMAND {
             let id = (wparam.0 & 0xffff) as u32;
@@ -239,30 +237,184 @@ pub fn open_preferences(ctx: PrefsContext) {
         }
 
         let mk_label = |text: &str, x: i32, y: i32, w: i32| {
-            create_control(hwnd, "STATIC", text, 0, x, y, w, 22, WINDOW_STYLE(SS_LEFT.0), instance)
+            create_control(
+                hwnd,
+                "STATIC",
+                text,
+                0,
+                x,
+                y,
+                w,
+                22,
+                WINDOW_STYLE(SS_LEFT.0),
+                instance,
+            )
         };
         let _ = mk_label("Rows (3-5)", 16, 14, 160);
-        let rows = create_control(hwnd, "EDIT", "", IDC_ROWS, 200, 12, 80, 22, combo(&[WS_BORDER.0, ES_AUTOHSCROLL as u32, ES_NUMBER as u32]), instance);
+        let rows = create_control(
+            hwnd,
+            "EDIT",
+            "",
+            IDC_ROWS,
+            200,
+            12,
+            80,
+            22,
+            combo(&[WS_BORDER.0, ES_AUTOHSCROLL as u32, ES_NUMBER as u32]),
+            instance,
+        );
         let _ = mk_label("Columns (3-5)", 16, 44, 160);
-        let cols = create_control(hwnd, "EDIT", "", IDC_COLS, 200, 42, 80, 22, combo(&[WS_BORDER.0, ES_AUTOHSCROLL as u32, ES_NUMBER as u32]), instance);
+        let cols = create_control(
+            hwnd,
+            "EDIT",
+            "",
+            IDC_COLS,
+            200,
+            42,
+            80,
+            22,
+            combo(&[WS_BORDER.0, ES_AUTOHSCROLL as u32, ES_NUMBER as u32]),
+            instance,
+        );
         let _ = mk_label("Overlay opacity (0.25-0.95)", 16, 74, 180);
-        let opacity = create_control(hwnd, "EDIT", "", IDC_OPACITY, 200, 72, 80, 22, combo(&[WS_BORDER.0, ES_AUTOHSCROLL as u32]), instance);
+        let opacity = create_control(
+            hwnd,
+            "EDIT",
+            "",
+            IDC_OPACITY,
+            200,
+            72,
+            80,
+            22,
+            combo(&[WS_BORDER.0, ES_AUTOHSCROLL as u32]),
+            instance,
+        );
         let _ = mk_label("Free-mode step (6-90)", 16, 104, 180);
-        let step = create_control(hwnd, "EDIT", "", IDC_STEP, 200, 102, 80, 22, combo(&[WS_BORDER.0, ES_AUTOHSCROLL as u32, ES_NUMBER as u32]), instance);
-        let continuous = create_control(hwnd, "BUTTON", "Keep overlay visible after actions", IDC_CONTINUOUS, 16, 134, 280, 22, WINDOW_STYLE(BS_AUTOCHECKBOX as u32), instance);
-        let launch = create_control(hwnd, "BUTTON", "Launch at Startup", IDC_LAUNCH, 16, 162, 280, 22, WINDOW_STYLE(BS_AUTOCHECKBOX as u32), instance);
+        let step = create_control(
+            hwnd,
+            "EDIT",
+            "",
+            IDC_STEP,
+            200,
+            102,
+            80,
+            22,
+            combo(&[WS_BORDER.0, ES_AUTOHSCROLL as u32, ES_NUMBER as u32]),
+            instance,
+        );
+        let continuous = create_control(
+            hwnd,
+            "BUTTON",
+            "Keep overlay visible after actions",
+            IDC_CONTINUOUS,
+            16,
+            134,
+            280,
+            22,
+            WINDOW_STYLE(BS_AUTOCHECKBOX as u32),
+            instance,
+        );
+        let launch = create_control(
+            hwnd,
+            "BUTTON",
+            "Launch at Startup",
+            IDC_LAUNCH,
+            16,
+            162,
+            280,
+            22,
+            WINDOW_STYLE(BS_AUTOCHECKBOX as u32),
+            instance,
+        );
 
         let _ = mk_label("Overlay shortcut key", 16, 196, 180);
-        let hotkey_key = create_control(hwnd, "EDIT", "", IDC_HOTKEY_KEY, 200, 194, 60, 22, combo(&[WS_BORDER.0, ES_AUTOHSCROLL as u32]), instance);
-        let hotkey_ctrl = create_control(hwnd, "BUTTON", "Ctrl", IDC_HOTKEY_CTRL, 16, 224, 90, 22, WINDOW_STYLE(BS_AUTOCHECKBOX as u32), instance);
-        let hotkey_alt = create_control(hwnd, "BUTTON", "Alt", IDC_HOTKEY_ALT, 110, 224, 90, 22, WINDOW_STYLE(BS_AUTOCHECKBOX as u32), instance);
-        let hotkey_shift = create_control(hwnd, "BUTTON", "Shift", IDC_HOTKEY_SHIFT, 204, 224, 90, 22, WINDOW_STYLE(BS_AUTOCHECKBOX as u32), instance);
-        let hotkey_win = create_control(hwnd, "BUTTON", "Win", IDC_HOTKEY_WIN, 300, 224, 90, 22, WINDOW_STYLE(BS_AUTOCHECKBOX as u32), instance);
+        let hotkey_key = create_control(
+            hwnd,
+            "EDIT",
+            "",
+            IDC_HOTKEY_KEY,
+            200,
+            194,
+            60,
+            22,
+            combo(&[WS_BORDER.0, ES_AUTOHSCROLL as u32]),
+            instance,
+        );
+        let hotkey_ctrl = create_control(
+            hwnd,
+            "BUTTON",
+            "Ctrl",
+            IDC_HOTKEY_CTRL,
+            16,
+            224,
+            90,
+            22,
+            WINDOW_STYLE(BS_AUTOCHECKBOX as u32),
+            instance,
+        );
+        let hotkey_alt = create_control(
+            hwnd,
+            "BUTTON",
+            "Alt",
+            IDC_HOTKEY_ALT,
+            110,
+            224,
+            90,
+            22,
+            WINDOW_STYLE(BS_AUTOCHECKBOX as u32),
+            instance,
+        );
+        let hotkey_shift = create_control(
+            hwnd,
+            "BUTTON",
+            "Shift",
+            IDC_HOTKEY_SHIFT,
+            204,
+            224,
+            90,
+            22,
+            WINDOW_STYLE(BS_AUTOCHECKBOX as u32),
+            instance,
+        );
+        let hotkey_win = create_control(
+            hwnd,
+            "BUTTON",
+            "Win",
+            IDC_HOTKEY_WIN,
+            300,
+            224,
+            90,
+            22,
+            WINDOW_STYLE(BS_AUTOCHECKBOX as u32),
+            instance,
+        );
 
         let _ = mk_label("Quit grid key", 16, 256, 180);
-        let quitkey = create_control(hwnd, "EDIT", "", IDC_QUITKEY, 200, 254, 60, 22, combo(&[WS_BORDER.0, ES_AUTOHSCROLL as u32]), instance);
+        let quitkey = create_control(
+            hwnd,
+            "EDIT",
+            "",
+            IDC_QUITKEY,
+            200,
+            254,
+            60,
+            22,
+            combo(&[WS_BORDER.0, ES_AUTOHSCROLL as u32]),
+            instance,
+        );
 
-        let _ = create_control(hwnd, "BUTTON", "Done", IDC_DONE, 160, 300, 100, 30, WINDOW_STYLE(BS_PUSHBUTTON as u32), instance);
+        let _ = create_control(
+            hwnd,
+            "BUTTON",
+            "Done",
+            IDC_DONE,
+            160,
+            300,
+            100,
+            30,
+            WINDOW_STYLE(BS_PUSHBUTTON as u32),
+            instance,
+        );
 
         set_text(rows, &s.grid_rows.to_string());
         set_text(cols, &s.grid_columns.to_string());

@@ -1,8 +1,10 @@
 use crate::core::ClickDetector;
 use windows::Win32::Foundation::{POINT, RECT};
-use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED};
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED,
+};
 use windows::Win32::UI::Accessibility::{
-    IUIAutomation, IUIAutomationElement, IUIAutomationTreeWalker, CUIAutomation,
+    CUIAutomation, IUIAutomation, IUIAutomationElement, IUIAutomationTreeWalker,
     UIA_ButtonControlTypeId, UIA_CheckBoxControlTypeId, UIA_ComboBoxControlTypeId,
     UIA_DocumentControlTypeId, UIA_EditControlTypeId, UIA_HyperlinkControlTypeId,
     UIA_ListItemControlTypeId, UIA_MenuItemControlTypeId, UIA_RadioButtonControlTypeId,
@@ -17,14 +19,8 @@ pub struct UiAutomationDetector {
 
 impl UiAutomationDetector {
     pub fn new() -> Self {
-        let automation = unsafe {
-            CoCreateInstance::<_, IUIAutomation>(
-                &CUIAutomation,
-                None,
-                CLSCTX_ALL,
-            )
-            .ok()
-        };
+        let automation =
+            unsafe { CoCreateInstance::<_, IUIAutomation>(&CUIAutomation, None, CLSCTX_ALL).ok() };
         UiAutomationDetector { automation }
     }
 
@@ -54,7 +50,7 @@ impl UiAutomationDetector {
         &self,
         walker: &IUIAutomationTreeWalker,
         element: &IUIAutomationElement,
-    ) -> Option<(f64, f64, f64, RECT)> {
+    ) -> Option<(f64, f64, f64, RECT, bool)> {
         let mut current: Option<IUIAutomationElement> = Some(element.clone());
         for _ in 0..8 {
             let el = current?;
@@ -64,7 +60,21 @@ impl UiAutomationDetector {
                         let cx = (rect.left + rect.right) as f64 / 2.0;
                         let cy = (rect.top + rect.bottom) as f64 / 2.0;
                         let area = ((rect.right - rect.left) * (rect.bottom - rect.top)) as f64;
-                        return Some((cx, cy, area.max(1.0), rect));
+                        // Chrome exposes a tab as a large TabItem and its x
+                        // affordance as a small Button named "Close".  Keep
+                        // that semantic information so a nearby tab does not
+                        // take precedence over the close button.
+                        let name = unsafe { el.CurrentName() }
+                            .map(|name| name.to_string().to_ascii_lowercase())
+                            .unwrap_or_default();
+                        let width = rect.right - rect.left;
+                        let height = rect.bottom - rect.top;
+                        let is_compact_close = (name.contains("close") || name.contains("dismiss"))
+                            && width > 0
+                            && height > 0
+                            && width <= 48
+                            && height <= 48;
+                        return Some((cx, cy, area.max(1.0), rect, is_compact_close));
                     }
                 }
             }
@@ -115,7 +125,7 @@ impl ClickDetector for UiAutomationDetector {
         // user selected the thumbnail.  Keep the user's point when it is
         // already inside a clickable control; only use a centre point to snap
         // to a nearby control.
-        let mut candidates: Vec<(f64, f64, f64, i32, bool)> = Vec::new();
+        let mut candidates: Vec<(f64, f64, f64, i32, bool, bool)> = Vec::new();
         for (order, (ox, oy)) in offsets.iter().enumerate() {
             let px = (x + *ox) as i32;
             let py = (y + *oy) as i32;
@@ -123,18 +133,44 @@ impl ClickDetector for UiAutomationDetector {
                 Ok(e) => e,
                 Err(_) => continue,
             };
-            if let Some((cx, cy, area, rect)) = self.clickable_bounds(&walker, &element) {
+            if let Some((cx, cy, area, rect, is_compact_close)) =
+                self.clickable_bounds(&walker, &element)
+            {
                 let contains_requested_point = x >= rect.left as f64
                     && x <= rect.right as f64
                     && y >= rect.top as f64
                     && y <= rect.bottom as f64;
-                candidates.push((cx, cy, area, order as i32, contains_requested_point));
+                candidates.push((
+                    cx,
+                    cy,
+                    area,
+                    order as i32,
+                    contains_requested_point,
+                    is_compact_close,
+                ));
             }
         }
 
         if candidates.is_empty() {
             return None;
         }
+        // If the selected point is close to an explicit compact Close control,
+        // click its centre. This makes closing a Chrome tab forgiving without
+        // changing the normal behaviour for larger browser content controls.
+        if let Some(close) = candidates
+            .iter()
+            .filter(|candidate| candidate.5)
+            .min_by(|a, b| {
+                let da = (a.0 - x).hypot(a.1 - y);
+                let db = (b.0 - x).hypot(b.1 - y);
+                da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+            })
+        {
+            if (close.0 - x).hypot(close.1 - y) <= 16.0 {
+                return Some((close.0, close.1));
+            }
+        }
+
         candidates.sort_by(|a, b| {
             b.4.cmp(&a.4).then_with(|| {
                 a.2.partial_cmp(&b.2)

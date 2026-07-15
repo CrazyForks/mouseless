@@ -1,6 +1,6 @@
 [package]
 name = "mouseless"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Mouseless keyboard mouse controller - Windows port"
 default-run = "mouseless"

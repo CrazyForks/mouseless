@@ -1,19 +1,20 @@
-use crate::common::Rect;
 use crate::common::rgb;
+use crate::common::Rect;
 use crate::core::Snapshot;
 use std::ptr::null_mut;
 use std::sync::OnceLock;
 use windows::Win32::Foundation::{HANDLE, HINSTANCE, HWND, POINT, RECT, SIZE};
 use windows::Win32::Graphics::Gdi::{
-    AC_SRC_ALPHA, AC_SRC_OVER, BLENDFUNCTION, CreateCompatibleDC, CreateDIBSection, CreateFontW,
-    DeleteDC, DeleteObject, DrawTextW, GetDC, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS,
-    DT_CENTER, DT_LEFT, DT_SINGLELINE, DT_VCENTER, HBITMAP, HBRUSH, HDC, SelectObject, SetBkMode,
-    SetTextColor, TRANSPARENT,
+    CreateCompatibleDC, CreateDIBSection, CreateFontW, DeleteDC, DeleteObject, DrawTextW, GetDC,
+    SelectObject, SetBkMode, SetTextColor, AC_SRC_ALPHA, AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER,
+    BI_RGB, BLENDFUNCTION, DIB_RGB_COLORS, DT_CENTER, DT_LEFT, DT_SINGLELINE, DT_VCENTER, HBITMAP,
+    HBRUSH, HDC, TRANSPARENT,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, HCURSOR, HICON, RegisterClassW, ShowWindow,
-    UpdateLayeredWindow, ULW_ALPHA, WNDCLASS_STYLES, WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE,
-    WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP, SW_HIDE, SW_SHOW,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, RegisterClassW, SetWindowPos, ShowWindow,
+    UpdateLayeredWindow, HCURSOR, HICON, HWND_TOPMOST, SWP_NOACTIVATE, SWP_SHOWWINDOW, SW_HIDE,
+    SW_SHOW, ULW_ALPHA, WNDCLASSW, WNDCLASS_STYLES, WS_EX_LAYERED, WS_EX_NOACTIVATE,
+    WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
 };
 
 fn class_name() -> windows::core::PCWSTR {
@@ -177,21 +178,16 @@ impl OverlayWindows {
                 ..Default::default()
             };
             let mut bits: *mut std::ffi::c_void = null_mut();
-            let bitmap = match CreateDIBSection(
-                hdc,
-                &bmi,
-                DIB_RGB_COLORS,
-                &mut bits,
-                HANDLE(null_mut()),
-                0,
-            ) {
-                Ok(b) => b,
-                Err(_) => {
-                    let _ = DeleteDC(hdc);
-                    let _ = DestroyWindow(hwnd);
-                    return None;
-                }
-            };
+            let bitmap =
+                match CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS, &mut bits, HANDLE(null_mut()), 0)
+                {
+                    Ok(b) => b,
+                    Err(_) => {
+                        let _ = DeleteDC(hdc);
+                        let _ = DestroyWindow(hwnd);
+                        return None;
+                    }
+                };
             let _ = SelectObject(hdc, bitmap);
             Some(PerMonitorWindow {
                 hwnd,
@@ -209,7 +205,19 @@ impl OverlayWindows {
         self.ensure_windows(monitors);
         for w in &self.windows {
             unsafe {
-                ShowWindow(w.hwnd, SW_SHOW);
+                // Taskbar windows can be topmost too. Reassert the z-order
+                // when every overlay is shown so the full grid covers the
+                // taskbar instead of appearing behind it.
+                let _ = SetWindowPos(
+                    w.hwnd,
+                    HWND_TOPMOST,
+                    w.monitor.left as i32,
+                    w.monitor.top as i32,
+                    w.width,
+                    w.height,
+                    SWP_SHOWWINDOW | SWP_NOACTIVATE,
+                );
+                let _ = ShowWindow(w.hwnd, SW_SHOW);
             }
         }
     }
@@ -254,7 +262,19 @@ impl OverlayWindows {
         if snapshot.active_region.intersects(&w.monitor) {
             let region_alpha = (snapshot.opacity * 0.16 * 255.0) as u8;
             let r = local_region;
-            fill_rect(buf, w.width, w.height, r.left, r.top, r.right, r.bottom, 0, 0, 0, region_alpha);
+            fill_rect(
+                buf,
+                w.width,
+                w.height,
+                r.left,
+                r.top,
+                r.right,
+                r.bottom,
+                0,
+                0,
+                0,
+                region_alpha,
+            );
 
             if snapshot.precision_mode {
                 self.draw_precision(w, snapshot, local_region);
@@ -276,7 +296,18 @@ impl OverlayWindows {
                 (0, 200, 80)
             };
             draw_circle(buf, w.width, w.height, lx, ly, radius, cr, cg, cb, 255);
-            draw_ring(buf, w.width, w.height, lx, ly, radius + 4, 255, 255, 255, 230);
+            draw_ring(
+                buf,
+                w.width,
+                w.height,
+                lx,
+                ly,
+                radius + 4,
+                255,
+                255,
+                255,
+                230,
+            );
         }
 
         self.draw_status(w, snapshot);
@@ -343,8 +374,32 @@ impl OverlayWindows {
                     right: (region.left as f64 + (col + 1) as f64 * cw) as i32,
                     bottom: (region.top as f64 + (row + 1) as f64 * ch) as i32,
                 };
-                fill_rect(buf, width, height, cell.left, cell.top, cell.right, cell.bottom, 0, 178, 178, 60);
-                draw_rect_outline(buf, width, height, cell.left, cell.top, cell.right, cell.bottom, 0, 178, 178, 210);
+                fill_rect(
+                    buf,
+                    width,
+                    height,
+                    cell.left,
+                    cell.top,
+                    cell.right,
+                    cell.bottom,
+                    0,
+                    178,
+                    178,
+                    60,
+                );
+                draw_rect_outline(
+                    buf,
+                    width,
+                    height,
+                    cell.left,
+                    cell.top,
+                    cell.right,
+                    cell.bottom,
+                    0,
+                    178,
+                    178,
+                    210,
+                );
                 self.draw_label(w, &snapshot.labels[index], &cell);
             }
         }
@@ -355,15 +410,43 @@ impl OverlayWindows {
         let width = w.width;
         let height = w.height;
 
-        let box_w = ((width as f64 - 48.0).min((snapshot.columns as f64) * 20.0).max(100.0)) as i32;
-        let box_h = ((height as f64 - 96.0).min((snapshot.rows as f64) * 15.0).max(75.0)) as i32;
+        let box_w = ((width as f64 - 48.0)
+            .min((snapshot.columns as f64) * 20.0)
+            .max(100.0)) as i32;
+        let box_h = ((height as f64 - 96.0)
+            .min((snapshot.rows as f64) * 15.0)
+            .max(75.0)) as i32;
         let mut bx = region.left + region.width() / 2 - box_w / 2;
         let mut by = region.top + region.height() / 2 - box_h / 2;
         bx = bx.clamp(24, width - box_w - 24);
         by = by.clamp(24, height - box_h - 58);
 
-        draw_rect_outline(buf, width, height, region.left, region.top, region.right, region.bottom, 255, 235, 0, 230);
-        fill_rect(buf, width, height, bx - 8, by - 8, bx + box_w + 8, by + box_h + 8, 0, 0, 0, 102);
+        draw_rect_outline(
+            buf,
+            width,
+            height,
+            region.left,
+            region.top,
+            region.right,
+            region.bottom,
+            255,
+            235,
+            0,
+            230,
+        );
+        fill_rect(
+            buf,
+            width,
+            height,
+            bx - 8,
+            by - 8,
+            bx + box_w + 8,
+            by + box_h + 8,
+            0,
+            0,
+            0,
+            102,
+        );
         draw_line(
             buf,
             width,
@@ -434,7 +517,11 @@ impl OverlayWindows {
     }
 
     fn draw_status(&self, w: &PerMonitorWindow, snapshot: &Snapshot) {
-        let mode = if snapshot.continuous_mode { "Persist" } else { "Once" };
+        let mode = if snapshot.continuous_mode {
+            "Persist"
+        } else {
+            "Once"
+        };
         let drag = if snapshot.dragging { "  Dragging" } else { "" };
         let text = format!("{}  {}  {}  {}", "Mouseless", mode, drag, snapshot.status);
         let mut wide = to_wide(&text);
@@ -460,7 +547,19 @@ impl OverlayWindows {
             let bx = 14i32;
             let by = w.height - 36;
             let bw = (text.chars().count() as i32 * 8).clamp(120, 900);
-            fill_rect(w.bits, w.width, w.height, bx, by, bx + bw, by + 24, 0, 0, 0, 135);
+            fill_rect(
+                w.bits,
+                w.width,
+                w.height,
+                bx,
+                by,
+                bx + bw,
+                by + 24,
+                0,
+                0,
+                0,
+                135,
+            );
             SetTextColor(w.hdc, rgb(255, 255, 255));
             let mut rect = RECT {
                 left: bx + 4,
@@ -506,17 +605,7 @@ fn local_rect(virtual_rect: Rect, monitor: Rect) -> RectI {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn set_pixel(
-    buf: *mut u32,
-    width: i32,
-    height: i32,
-    x: i32,
-    y: i32,
-    r: u8,
-    g: u8,
-    b: u8,
-    a: u8,
-) {
+fn set_pixel(buf: *mut u32, width: i32, height: i32, x: i32, y: i32, r: u8, g: u8, b: u8, a: u8) {
     if x < 0 || y < 0 || x >= width || y >= height {
         return;
     }

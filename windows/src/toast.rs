@@ -1,18 +1,18 @@
+use crate::common::rgb;
 use std::ptr::null_mut;
 use std::sync::OnceLock;
-use windows::Win32::Foundation::{HANDLE, HINSTANCE, HWND, POINT, SIZE, WPARAM, LPARAM, LRESULT};
+use windows::Win32::Foundation::{HANDLE, HINSTANCE, HWND, LPARAM, LRESULT, POINT, SIZE, WPARAM};
 use windows::Win32::Graphics::Gdi::{
-    AC_SRC_ALPHA, AC_SRC_OVER, BLENDFUNCTION, CreateCompatibleDC, CreateDIBSection, CreateFontW,
-    DeleteDC, DeleteObject, DrawTextW, GetDC, BITMAPINFO, BITMAPINFOHEADER, BI_RGB,
-    DIB_RGB_COLORS, DT_CENTER, DT_SINGLELINE, DT_VCENTER, HBITMAP, HDC, SelectObject, SetBkMode,
-    SetTextColor, TRANSPARENT,
+    CreateCompatibleDC, CreateDIBSection, CreateFontW, DeleteDC, DeleteObject, DrawTextW, GetDC,
+    SelectObject, SetBkMode, SetTextColor, AC_SRC_ALPHA, AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER,
+    BI_RGB, BLENDFUNCTION, DIB_RGB_COLORS, DT_CENTER, DT_SINGLELINE, DT_VCENTER, HBITMAP, HDC,
+    TRANSPARENT,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, KillTimer, RegisterClassW, SetTimer,
-    ShowWindow, UpdateLayeredWindow, SW_HIDE, WNDCLASS_STYLES, WNDCLASSW,
-    WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP, WM_TIMER,
+    ShowWindow, UpdateLayeredWindow, SW_HIDE, WM_TIMER, WNDCLASSW, WNDCLASS_STYLES, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
 };
-use crate::common::rgb;
 
 const CLASS_NAME: &str = "MouselessToast";
 const TIMER_ID: usize = 1;
@@ -93,21 +93,16 @@ impl ToastWindow {
                 ..Default::default()
             };
             let mut bits: *mut std::ffi::c_void = null_mut();
-            let bitmap = match CreateDIBSection(
-                hdc,
-                &bmi,
-                DIB_RGB_COLORS,
-                &mut bits,
-                HANDLE(null_mut()),
-                0,
-            ) {
-                Ok(b) => b,
-                Err(_) => {
-                    let _ = DeleteDC(hdc);
-                    let _ = DestroyWindow(hwnd);
-                    return None;
-                }
-            };
+            let bitmap =
+                match CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS, &mut bits, HANDLE(null_mut()), 0)
+                {
+                    Ok(b) => b,
+                    Err(_) => {
+                        let _ = DeleteDC(hdc);
+                        let _ = DestroyWindow(hwnd);
+                        return None;
+                    }
+                };
             let _ = SelectObject(hdc, bitmap);
             Some(ToastWindow {
                 hwnd,
@@ -133,9 +128,20 @@ impl ToastWindow {
             }
             let mut wide = to_wide(text);
             let hfont = CreateFontW(
-                -16, 0, 0, 0, 600, 0,
-                0, 0, 1, 0, 0, 0,
-                0, windows::core::PCWSTR::null(),
+                -16,
+                0,
+                0,
+                0,
+                600,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                windows::core::PCWSTR::null(),
             );
             let old = SelectObject(self.hdc, hfont);
             SetBkMode(self.hdc, TRANSPARENT);
@@ -164,10 +170,7 @@ impl ToastWindow {
                 }
             }
 
-            let point_dst = POINT {
-                x: 0,
-                y: 0,
-            };
+            let point_dst = POINT { x: 0, y: 0 };
             let size = SIZE {
                 cx: WIDTH,
                 cy: HEIGHT,
@@ -230,12 +233,7 @@ impl Drop for ToastWindow {
 unsafe impl Send for ToastWindow {}
 unsafe impl Sync for ToastWindow {}
 
-extern "system" fn toast_wnd_proc(
-    hwnd: HWND,
-    msg: u32,
-    wparam: WPARAM,
-    lparam: LPARAM,
-) -> LRESULT {
+extern "system" fn toast_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     if msg == WM_TIMER && wparam.0 as usize == TIMER_ID {
         unsafe {
             let _ = KillTimer(hwnd, TIMER_ID);

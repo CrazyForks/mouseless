@@ -23,15 +23,15 @@ use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 use windows::Win32::System::LibraryLoader::GetModuleFileNameW;
 use windows::Win32::System::Registry::{
-    HKEY, HKEY_CURRENT_USER, KEY_READ, KEY_SET_VALUE, REG_SZ, RegCloseKey, RegDeleteValueW,
-    RegGetValueW, RegOpenKeyExW, RegSetValueExW, RRF_RT_REG_SZ,
+    RegCloseKey, RegDeleteValueW, RegGetValueW, RegOpenKeyExW, RegSetValueExW, HKEY,
+    HKEY_CURRENT_USER, KEY_READ, KEY_SET_VALUE, REG_SZ, RRF_RT_REG_SZ,
 };
 use windows::Win32::UI::HiDpi::{
-    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext,
+    SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetMessageW, PostMessageW, PostQuitMessage, TranslateMessage, DispatchMessageW, WM_LBUTTONDBLCLK,
-    WM_LBUTTONUP, WM_RBUTTONUP,
+    DispatchMessageW, GetMessageW, PostMessageW, PostQuitMessage, TranslateMessage,
+    WM_LBUTTONDBLCLK, WM_LBUTTONUP, WM_RBUTTONUP,
 };
 
 struct Shared {
@@ -51,7 +51,12 @@ static MAIN_HWND: OnceLock<usize> = OnceLock::new();
 fn post_main(msg: u32) {
     if let Some(&addr) = MAIN_HWND.get() {
         unsafe {
-            let _ = PostMessageW(HWND(addr as *mut std::ffi::c_void), msg, WPARAM(0), LPARAM(0));
+            let _ = PostMessageW(
+                HWND(addr as *mut std::ffi::c_void),
+                msg,
+                WPARAM(0),
+                LPARAM(0),
+            );
         }
     }
 }
@@ -204,10 +209,7 @@ pub fn set_launch(enabled: bool) {
             if enabled {
                 let mut exe = [0u16; 512];
                 let n = GetModuleFileNameW(None, &mut exe) as usize;
-                let bytes = std::slice::from_raw_parts(
-                    exe.as_ptr() as *const u8,
-                    (n + 1) * 2,
-                );
+                let bytes = std::slice::from_raw_parts(exe.as_ptr() as *const u8, (n + 1) * 2);
                 let _ = RegSetValueExW(
                     key,
                     windows::core::PCWSTR::from_raw(name.as_ptr()),
@@ -223,7 +225,10 @@ pub fn set_launch(enabled: bool) {
     }
 }
 
-pub fn on_tray(hwnd: HWND, lparam: windows::Win32::Foundation::LPARAM) -> windows::Win32::Foundation::LRESULT {
+pub fn on_tray(
+    hwnd: HWND,
+    lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::LRESULT {
     let event = (lparam.0 as u32) & 0xffff;
     if event == WM_RBUTTONUP || event == WM_LBUTTONUP {
         tray::show_tray_menu(hwnd, launch_enabled());
